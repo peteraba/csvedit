@@ -10,6 +10,7 @@ pub enum InputMode {
     FreezeColumns,
     Option,
     Help,
+    RowView,
 }
 
 impl fmt::Display for InputMode {

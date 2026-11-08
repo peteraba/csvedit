@@ -180,6 +180,7 @@ pub struct App {
     echo_column: Option<String>,
     ignore_case: bool,
     help_page_state: help::HelpPageState,
+    row_view: Option<crate::row_view::RowView>,
     sorter: Option<Arc<sort::Sorter>>,
     sort_order: SortOrder,
     wrap_mode: WrapMode,
@@ -285,6 +286,7 @@ impl App {
             echo_column,
             ignore_case,
             help_page_state,
+            row_view: None,
             sorter: None,
             sort_order: SortOrder::Ascending,
             wrap_mode: WrapMode::default(),
@@ -362,6 +364,37 @@ impl App {
     fn step(&mut self, control: &Control) -> CsvlensResult<()> {
         if self.help_page_state.is_active() {
             return self.step_help(control);
+        }
+
+        if let Some(row_view) = &mut self.row_view {
+            match control {
+                Control::CloseRowView => {
+                    self.row_view = None;
+                    self.input_handler.set_row_view(false);
+                }
+                Control::ScrollDown => row_view.scroll_down(),
+                Control::ScrollUp => row_view.scroll_up(),
+                Control::ScrollTop => row_view.scroll_top(),
+                Control::ScrollBottom => row_view.scroll_bottom(),
+                _ => {}
+            }
+            // Keep the underlying table and selection unchanged while inspecting a row.
+            if !matches!(control, Control::FileChanged) {
+                return Ok(());
+            }
+        }
+        if matches!(control, Control::ViewRow) {
+            if let Some(row) = self
+                .rows_view
+                .selection
+                .row
+                .index()
+                .and_then(|index| self.rows_view.rows().get(index as usize))
+            {
+                self.row_view = Some(crate::row_view::RowView::new(self.rows_view.headers(), row));
+                self.input_handler.set_row_view(true);
+            }
+            return Ok(());
         }
 
         // Clear message without changing other states on any action. FileChanged is excluded since
@@ -1080,6 +1113,11 @@ impl App {
             return;
         }
 
+        if let Some(row_view) = &mut self.row_view {
+            row_view.render(f, size);
+            return;
+        }
+
         // Render table
         // TODO: check type of num_rows too big?
         let num_rows_adjusted = size.height.saturating_sub(self.num_rows_not_visible) as u64;
@@ -1251,6 +1289,39 @@ mod tests {
         if let Some(finder) = &app.finder {
             finder.wait_internal();
         }
+    }
+
+    #[test]
+    fn test_row_view_preserves_table_selection() {
+        let mut app = AppBuilder::new("tests/data/simple.csv").build().unwrap();
+        till_app_ready(&app);
+        let mut terminal = Terminal::new(TestBackend::new(60, 12)).unwrap();
+        step_and_draw(&mut app, &mut terminal, Control::Nothing);
+        step_and_draw(&mut app, &mut terminal, Control::ScrollDown);
+        let original = terminal.backend().buffer().clone();
+        let selection = app.rows_view.selection.row.index();
+        step_and_draw(&mut app, &mut terminal, Control::ViewRow);
+        let rendered = to_lines(terminal.backend().buffer()).join("\n");
+        assert!(rendered.contains("Row 2"));
+        assert!(rendered.contains("Column"));
+        assert!(rendered.contains("Value"));
+        assert!(rendered.contains("A2"));
+        assert!(rendered.contains("B2"));
+        assert!(!rendered.contains("A1"));
+        step_and_draw(&mut app, &mut terminal, Control::ScrollDown);
+        assert_eq!(app.rows_view.selection.row.index(), selection);
+        step_and_draw(&mut app, &mut terminal, Control::CloseRowView);
+        assert!(app.row_view.is_none());
+        assert_eq!(terminal.backend().buffer(), &original);
+    }
+
+    #[test]
+    fn test_row_view_without_selected_row() {
+        let mut app = AppBuilder::new("tests/data/simple.csv").build().unwrap();
+        app.rows_view.selection.row.unset_index();
+        app.step(&Control::ViewRow).unwrap();
+        assert!(app.row_view.is_none());
+        assert_eq!(app.input_handler.mode(), crate::common::InputMode::Default);
     }
 
     #[test]

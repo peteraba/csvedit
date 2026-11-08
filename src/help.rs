@@ -43,6 +43,7 @@ Shift + ↓ (or J)        : Sort rows by the selected column (auto by type: nume
 Ctrl + J                : Sort rows by the selected column (natural; e.g. \"file2\" < \"file10\")
 # (in Cell mode)        : Find and highlight rows like the selected cell
 @ (in Cell mode)        : Filter rows like the selected cell
+v                       : View selected row as column/value pairs (Esc or Enter to return)
 y                       : Copy the selected row or cell to clipboard
 Enter (in Cell mode)    : Print the selected cell to stdout and exit
 

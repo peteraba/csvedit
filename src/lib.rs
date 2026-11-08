@@ -48,6 +48,7 @@ mod help;
 mod history;
 mod input;
 mod io;
+mod row_view;
 mod runner;
 mod sort;
 mod theme;
