@@ -47,6 +47,8 @@ pub enum Control {
     ToggleNaturalSort,
     Reset,
     Help,
+    ViewRow,
+    CloseRowView,
     UnknownOption(String),
     UserError(String),
     FileChanged,
@@ -118,6 +120,17 @@ impl InputHandler {
         } else {
             key.modifiers.remove(KeyModifiers::SHIFT);
         }
+        if self.mode == InputMode::RowView {
+            return match key.code {
+                KeyCode::Esc | KeyCode::Enter => Control::CloseRowView,
+                KeyCode::Char('q') => Control::Quit,
+                KeyCode::Char('j') | KeyCode::Down => Control::ScrollDown,
+                KeyCode::Char('k') | KeyCode::Up => Control::ScrollUp,
+                KeyCode::Home | KeyCode::Char('g') => Control::ScrollTop,
+                KeyCode::End | KeyCode::Char('G') => Control::ScrollBottom,
+                _ => Control::Nothing,
+            };
+        }
         if self.is_help_mode() {
             self.handler_help(key)
         } else if self.is_input_buffering() {
@@ -127,9 +140,18 @@ impl InputHandler {
         }
     }
 
+    pub fn set_row_view(&mut self, active: bool) {
+        self.mode = if active {
+            InputMode::RowView
+        } else {
+            InputMode::Default
+        };
+    }
+
     fn handler_default(&mut self, key_event: KeyEvent) -> Control {
         match key_event.modifiers {
             KeyModifiers::NONE => match key_event.code {
+                KeyCode::Char('v') => Control::ViewRow,
                 KeyCode::Char('q') => Control::Quit,
                 KeyCode::Char('j') | KeyCode::Down => Control::ScrollDown,
                 KeyCode::Char('k') | KeyCode::Up => Control::ScrollUp,
@@ -360,5 +382,40 @@ impl InputHandler {
 
     fn is_help_mode(&mut self) -> bool {
         self.mode == InputMode::Help
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn row_view_keys_do_not_select_or_start_input() {
+        let mut handler = InputHandler::new(None);
+        assert!(matches!(
+            handler.handle_key(KeyEvent::from(KeyCode::Char('v'))),
+            Control::ViewRow
+        ));
+        handler.set_row_view(true);
+        for key in [KeyCode::Esc, KeyCode::Enter] {
+            assert!(matches!(
+                handler.handle_key(KeyEvent::from(key)),
+                Control::CloseRowView
+            ));
+        }
+        assert!(matches!(
+            handler.handle_key(KeyEvent::from(KeyCode::Char('/'))),
+            Control::Nothing
+        ));
+        handler.set_row_view(false);
+        assert!(matches!(
+            handler.handle_key(KeyEvent::from(KeyCode::Enter)),
+            Control::Select
+        ));
+        handler.init_buffer(InputMode::Find);
+        assert!(matches!(
+            handler.handle_key(KeyEvent::from(KeyCode::Char('v'))),
+            Control::BufferContent(_)
+        ));
     }
 }

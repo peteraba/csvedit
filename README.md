@@ -48,6 +48,7 @@ Key | Action
 `#` (in Cell mode) | Find and highlight rows like the selected cell
 `@` (in Cell mode) | Filter rows like the selected cell
 `y` | Copy the selected row or cell to clipboard
+`v` | View selected row as a two-column table; `Esc` or `Enter` returns, ↑/↓ scrolls
 `Enter` (in Cell mode) | Print the selected cell to stdout and exit
 `-S` | Toggle line wrapping
 `-W` | Toggle line wrapping by words
